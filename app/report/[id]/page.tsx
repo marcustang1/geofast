@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -9,6 +10,8 @@ import {
   AlertTriangle,
   XCircle,
   ExternalLink,
+  ArrowLeft,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,168 +27,16 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import { ScoreRing, scoreColor, dimensionBorderColor } from "@/components/report/score-ring";
+import {
+  ScoreRing,
+  scoreColor,
+  dimensionBorderColor,
+} from "@/components/report/score-ring";
 import { CodeBlock } from "@/components/report/code-block";
 import { cn } from "@/lib/utils";
-
-const reportData = {
-  domain: "www.plaud.ai",
-  overallScore: 75,
-  summary: { critical: 1, warnings: 5 },
-  signals: [
-    { label: "robots.txt", ok: true },
-    { label: "llms.txt", ok: false },
-    { label: "sitemap.xml", ok: true },
-  ],
-  dimensions: [
-    { label: "AI Crawlability", short: "Crawl", score: 100 },
-    { label: "AI Navigation", short: "Nav", score: 88 },
-    { label: "Structured Data", short: "Structured", score: 90 },
-    { label: "Citability", short: "Cite", score: 70 },
-  ],
-  issues: [
-    {
-      id: "1",
-      severity: "critical" as const,
-      dimension: "AI Crawlability",
-      title: "Missing llms.txt file",
-      pages: "llms.txt · 1/1 pages · ~1 page affected",
-      description:
-        "Your website does not have an llms.txt file. This is a standard file specifically designed to provide brand information to AI. Without it, AI systems struggle to obtain accurate brand facts, reducing the probability of being correctly cited.",
-      steps: [
-        "Create a /llms.txt file in your website root directory",
-        "Add a brand summary (one sentence describing who you are)",
-        "Add core facts (founding year, headquarters, business type)",
-        "Add recommended page links (About, Products, FAQ)",
-      ],
-      code: `# Brand Name
-> One-sentence brand positioning: what we do, who we serve, what value we provide
-
-## Core Facts
-- Founded: 2020
-- Headquarters: Shenzhen
-- Business: AI Recording Devices
-- Website: https://example.com
-
-## Recommended Pages
-- [About Us](https://example.com/about)
-- [Products](https://example.com/products)
-- [FAQ](https://example.com/faq)`,
-      affectedPage: "/llms.txt",
-    },
-    {
-      id: "2",
-      severity: "warning" as const,
-      dimension: "Structured Data",
-      title: "Incomplete multilingual content",
-      pages: "Homepage · 1/1 pages · ~1 page affected",
-      description:
-        "Multilingual versions of content are incomplete, which may confuse AI when summarizing your brand for users in different languages.",
-      steps: [
-        "Ensure all key pages have complete translations",
-        "Add hreflang tags for each language variant",
-      ],
-      code: null,
-      affectedPage: null,
-    },
-    {
-      id: "3",
-      severity: "warning" as const,
-      dimension: "Citability",
-      title: "FAQ page exists",
-      pages: "FAQ page · 8/10 pages · ~68 pages affected",
-      description:
-        "Your FAQ page is present but could be better structured with FAQ schema markup to improve AI answer extraction.",
-      steps: [
-        "Add FAQPage schema markup",
-        "Ensure questions are in proper heading tags",
-      ],
-      code: null,
-      affectedPage: null,
-    },
-    {
-      id: "4",
-      severity: "warning" as const,
-      dimension: "Structured Data",
-      title: "Organization.contactPoint",
-      pages: "Homepage · 1/1 pages · ~1 page affected",
-      description: "Missing contactPoint in Organization schema.",
-      steps: ["Add contactPoint to your Organization JSON-LD"],
-      code: null,
-      affectedPage: null,
-    },
-    {
-      id: "5",
-      severity: "warning" as const,
-      dimension: "Structured Data",
-      title: "Organization.address",
-      pages: "Homepage · 1/1 pages · ~1 page affected",
-      description: "Missing address in Organization schema.",
-      steps: ["Add PostalAddress to your Organization JSON-LD"],
-      code: null,
-      affectedPage: null,
-    },
-    {
-      id: "6",
-      severity: "warning" as const,
-      dimension: "AI Navigation",
-      title: "Low page structure score",
-      pages: "Homepage · 1/1 pages · ~1 page affected",
-      description:
-        "Page heading hierarchy is not optimal for AI parsing.",
-      steps: [
-        "Use a single H1 per page",
-        "Maintain proper heading hierarchy (H1 > H2 > H3)",
-      ],
-      code: null,
-      affectedPage: null,
-    },
-  ],
-  passed: [
-    "Valid JSON-LD Schema detected",
-    "robots.txt allows AI crawlers",
-    "Open Graph meta tags present",
-    "Canonical URL set",
-    "Proper heading hierarchy on product pages",
-    "sitemap.xml accessible",
-    "Meta description present on all pages",
-    "Alt text on hero images",
-    "HTTPS enforced",
-    "Fast page load time (<2s)",
-    "Mobile responsive",
-    "Structured breadcrumbs",
-    "Language attribute set",
-    "Viewport meta tag present",
-    "No duplicate title tags",
-    "No broken internal links",
-    "Social media links present",
-    "favicon.ico accessible",
-    "Content-Type headers correct",
-    "No noindex on key pages",
-    "Clean URL structure",
-    "Image optimization",
-    "Proper 404 page",
-    "XML sitemap valid format",
-    "No mixed content warnings",
-    "Server response < 500ms",
-    "Compression enabled (gzip)",
-  ],
-  aiPerspective: {
-    brandName: "PLAUD",
-    businessType: "AI Recording Devices",
-    citationScore: 7,
-    understands: [
-      "Core product offering — AI-powered voice recorders",
-      "Key product features and differentiators",
-      "Company's focus on AI transcription technology",
-    ],
-    confused: [
-      "Target audience and ideal customer profile",
-      "Differentiation from smartphone recording apps",
-    ],
-    missing: ["Customer success stories or case studies"],
-  },
-};
+import { getReport } from "@/lib/storage/local-store";
+import { downloadTxt } from "@/lib/storage/txt-export";
+import type { StoredReport, Issue } from "@/lib/types";
 
 function IssueGroup({
   title,
@@ -201,13 +52,18 @@ function IssueGroup({
   iconClass: string;
   badgeClass: string;
   badgeLabel: string;
-  issues: typeof reportData.issues;
+  issues: Issue[];
   defaultOpen?: string;
 }) {
   if (issues.length === 0) return null;
   return (
     <div>
-      <h3 className={cn("mb-3 flex items-center gap-2 text-sm font-semibold", iconClass)}>
+      <h3
+        className={cn(
+          "mb-3 flex items-center gap-2 text-sm font-semibold",
+          iconClass
+        )}
+      >
         <Icon size={16} /> {title} ({issues.length})
       </h3>
       <Accordion type="single" collapsible defaultValue={defaultOpen}>
@@ -232,16 +88,13 @@ function IssueGroup({
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              <p className="mb-3 text-xs text-muted-foreground">
-                {issue.pages}
-              </p>
               <div className="mb-4 rounded-lg bg-secondary/50 p-4 text-sm text-muted-foreground">
                 {issue.description}
               </div>
               {issue.steps.length > 0 && (
                 <div className="mb-4">
                   <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
-                    🔧 How to fix
+                    How to fix
                   </p>
                   <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
                     {issue.steps.map((s, i) => (
@@ -251,20 +104,22 @@ function IssueGroup({
                 </div>
               )}
               {issue.code && (
-                <div>
+                <div className="mb-4">
                   <p className="mb-1 text-xs text-muted-foreground">
-                    &lt;&gt; Code example
+                    Code example
                   </p>
                   <CodeBlock code={issue.code} />
                 </div>
               )}
-              {issue.affectedPage && (
-                <div className="mt-4 text-xs text-muted-foreground">
-                  <p className="mb-1 flex items-center gap-1 font-medium text-foreground">
-                    <ExternalLink size={12} /> Affected page
-                  </p>
-                  <span className="text-primary">{issue.affectedPage}</span>
-                </div>
+              {issue.referenceUrl && (
+                <a
+                  href={issue.referenceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink size={12} /> Reference
+                </a>
               )}
             </AccordionContent>
           </AccordionItem>
@@ -274,13 +129,119 @@ function IssueGroup({
   );
 }
 
+function EEATBar({
+  label,
+  score,
+  maxScore,
+  evidence,
+  gaps,
+}: {
+  label: string;
+  score: number;
+  maxScore: number;
+  evidence: string;
+  gaps: string;
+}) {
+  const pct = Math.round((score / maxScore) * 100);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-foreground capitalize">
+          {label}
+        </span>
+        <span className={cn("text-sm font-bold", scoreColor(pct))}>
+          {score}/{maxScore}
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-secondary">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all",
+            pct >= 80
+              ? "bg-success"
+              : pct >= 50
+                ? "bg-warning"
+                : "bg-destructive"
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+        <p>
+          <span className="font-medium text-success">Evidence:</span>{" "}
+          {evidence}
+        </p>
+        <p>
+          <span className="font-medium text-destructive">Gaps:</span> {gaps}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function ReportPage() {
   const params = useParams();
   const id = params.id as string;
-  const d = reportData;
+  const [report, setReport] = useState<StoredReport | null | undefined>(
+    undefined
+  );
 
-  const criticalIssues = d.issues.filter((i) => i.severity === "critical");
-  const warningIssues = d.issues.filter((i) => i.severity === "warning");
+  useEffect(() => {
+    setReport(getReport(id));
+  }, [id]);
+
+  if (report === undefined) {
+    return (
+      <div className="flex min-h-screen items-center justify-center gradient-bg">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  if (report === null) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 gradient-bg">
+        <h1 className="text-2xl font-bold text-foreground">
+          Report not found
+        </h1>
+        <p className="text-muted-foreground">
+          This report may have expired or been deleted.
+        </p>
+        <Button asChild>
+          <Link href="/">
+            <ArrowLeft size={16} className="mr-2" />
+            Scan a new URL
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const d = report.scanResult;
+  const criticalIssues = d.issues.filter(
+    (i) => i.severity === "critical"
+  );
+  const warningIssues = d.issues.filter(
+    (i) => i.severity === "warning"
+  );
+
+  const dimensions = [
+    { label: "AI Crawlability", score: d.scores.crawlability },
+    { label: "AI Navigation", score: d.scores.navigation },
+    { label: "Structured Data", score: d.scores.structured },
+    { label: "Citability", score: d.scores.citability },
+  ];
+
+  const signals = [
+    { label: "robots.txt", ok: d.domainSignals.robotsTxt },
+    { label: "llms.txt", ok: d.domainSignals.llmsTxt },
+    {
+      label: d.domainSignals.sitemapPages
+        ? `sitemap.xml (${d.domainSignals.sitemapPages} pages)`
+        : "sitemap.xml",
+      ok: d.domainSignals.sitemapXml,
+    },
+  ];
 
   return (
     <div className="min-h-screen gradient-bg">
@@ -297,7 +258,7 @@ export default function ReportPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => console.log("Export TXT for report", id)}
+              onClick={() => downloadTxt(report)}
             >
               <Download size={16} />
               Export TXT
@@ -318,15 +279,20 @@ export default function ReportPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Found{" "}
             <span className="font-semibold text-destructive">
-              {d.summary.critical} critical issue
+              {criticalIssues.length} critical{" "}
+              {criticalIssues.length === 1 ? "issue" : "issues"}
             </span>
             ,{" "}
             <span className="font-semibold text-warning">
-              {d.summary.warnings} warnings
+              {warningIssues.length} warnings
+            </span>
+            ,{" "}
+            <span className="font-semibold text-success">
+              {d.passed.length} passed
             </span>
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {d.signals.map((s) => (
+            {signals.map((s) => (
               <Badge
                 key={s.label}
                 variant="outline"
@@ -337,17 +303,20 @@ export default function ReportPage() {
                     : "border-destructive/40 text-destructive"
                 )}
               >
-                {s.label} {s.ok ? "✅" : "❌"}
+                {s.label} {s.ok ? "+" : "-"}
               </Badge>
             ))}
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Scanned {new Date(d.scannedAt).toLocaleString()}
+          </p>
         </section>
 
         {/* Score Overview */}
         <section className="flex flex-col items-center gap-8 rounded-2xl border border-border bg-card p-6 shadow-sm sm:flex-row sm:p-8">
           <ScoreRing score={d.overallScore} size={140} />
           <div className="grid w-full flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
-            {d.dimensions.map((dim) => (
+            {dimensions.map((dim) => (
               <div
                 key={dim.label}
                 className={cn(
@@ -394,7 +363,9 @@ export default function ReportPage() {
             </TabsTrigger>
             <TabsTrigger value="ai" className="gap-1.5">
               AI Perspective
-              <span className="ml-1 inline-block h-2 w-2 rounded-full bg-success" />
+              {d.llmPerspective && (
+                <span className="ml-1 inline-block h-2 w-2 rounded-full bg-success" />
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -407,7 +378,9 @@ export default function ReportPage() {
               badgeClass="bg-destructive/10 text-destructive"
               badgeLabel="Critical"
               issues={criticalIssues}
-              defaultOpen="issue-1"
+              defaultOpen={
+                criticalIssues[0] ? `issue-${criticalIssues[0].id}` : undefined
+              }
             />
             <IssueGroup
               title="Suggested Improvements"
@@ -427,64 +400,203 @@ export default function ReportPage() {
                   key={i}
                   className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
                 >
-                  <CheckCircle size={16} className="shrink-0 text-success" />
-                  <span className="text-sm text-foreground">{item}</span>
+                  <CheckCircle
+                    size={16}
+                    className="shrink-0 text-success"
+                  />
+                  <span className="text-sm text-foreground">
+                    {item.name}
+                  </span>
+                  <Badge variant="outline" className="ml-auto text-[10px]">
+                    {item.category}
+                  </Badge>
                 </div>
               ))}
             </div>
           </TabsContent>
 
           {/* Tab 3: AI Perspective */}
-          <TabsContent value="ai" className="mt-6">
-            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
-              <div className="mb-2 flex flex-wrap items-center gap-3">
-                <h3 className="text-lg font-bold text-foreground">
-                  {d.aiPerspective.brandName}
-                </h3>
-                <Badge variant="outline" className="text-xs">
-                  {d.aiPerspective.businessType}
-                </Badge>
-              </div>
-              <p className="mb-6 text-sm font-medium text-foreground">
-                AI Citation Score:{" "}
-                <span className="text-primary">
-                  {d.aiPerspective.citationScore}/10
-                </span>
-              </p>
+          <TabsContent value="ai" className="mt-6 space-y-6">
+            {d.llmPerspective ? (
+              <>
+                {/* Brand Overview */}
+                <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+                  <div className="mb-2 flex flex-wrap items-center gap-3">
+                    <h3 className="text-lg font-bold text-foreground">
+                      {d.llmPerspective.brandOverview.name}
+                    </h3>
+                    <Badge variant="outline" className="text-xs">
+                      {d.llmPerspective.brandOverview.businessType}
+                    </Badge>
+                  </div>
+                  <p className="mb-1 text-sm text-muted-foreground">
+                    {d.llmPerspective.brandOverview.targetUsers}
+                  </p>
+                  <p className="mb-6 text-sm font-medium text-foreground">
+                    AI Citation Score:{" "}
+                    <span className="text-primary">
+                      {d.llmPerspective.citationScore}/10
+                    </span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      — {d.llmPerspective.citationReasoning}
+                    </span>
+                  </p>
 
-              <div className="space-y-6">
-                <div>
-                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-success">
-                    <CheckCircle size={14} /> AI clearly understands
-                  </p>
-                  <ul className="list-disc space-y-1.5 pl-6 text-sm text-muted-foreground">
-                    {d.aiPerspective.understands.map((t, i) => (
-                      <li key={i}>{t}</li>
-                    ))}
-                  </ul>
+                  {/* Strengths & Weaknesses */}
+                  <div className="mb-6 grid gap-6 sm:grid-cols-2">
+                    <div>
+                      <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-success">
+                        <CheckCircle size={14} /> Strengths
+                      </p>
+                      <ul className="space-y-1.5 text-sm text-muted-foreground">
+                        {d.llmPerspective.strengths.map((s, i) => (
+                          <li key={i} className="flex gap-2">
+                            <span className="text-success">+</span> {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-destructive">
+                        <AlertCircle size={14} /> Weaknesses
+                      </p>
+                      <ul className="space-y-1.5 text-sm text-muted-foreground">
+                        {d.llmPerspective.weaknesses.map((w, i) => (
+                          <li key={i} className="flex gap-2">
+                            <span className="text-destructive">-</span> {w}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* AI Understanding */}
+                  <div className="space-y-4">
+                    <div>
+                      <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-success">
+                        <CheckCircle size={14} /> AI clearly understands
+                      </p>
+                      <ul className="list-disc space-y-1 pl-6 text-sm text-muted-foreground">
+                        {d.llmPerspective.aiUnderstanding.clearlyUnderstood.map(
+                          (t, i) => (
+                            <li key={i}>{t}</li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-warning">
+                        <AlertTriangle size={14} /> AI is confused about
+                      </p>
+                      <ul className="list-disc space-y-1 pl-6 text-sm text-muted-foreground">
+                        {d.llmPerspective.aiUnderstanding.confused.map(
+                          (t, i) => (
+                            <li key={i}>{t}</li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-destructive">
+                        <XCircle size={14} /> AI cannot find
+                      </p>
+                      <ul className="list-disc space-y-1 pl-6 text-sm text-muted-foreground">
+                        {d.llmPerspective.aiUnderstanding.missing.map(
+                          (t, i) => (
+                            <li key={i}>{t}</li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Recommendations */}
+                  {d.llmPerspective.recommendations.length > 0 && (
+                    <div className="mt-6">
+                      <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-primary">
+                        <Star size={14} /> Recommendations
+                      </p>
+                      <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
+                        {d.llmPerspective.recommendations.map((r, i) => (
+                          <li key={i}>{r}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-warning">
-                    <AlertTriangle size={14} /> AI is confused about
-                  </p>
-                  <ul className="list-disc space-y-1.5 pl-6 text-sm text-muted-foreground">
-                    {d.aiPerspective.confused.map((t, i) => (
-                      <li key={i}>{t}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-destructive">
-                    <XCircle size={14} /> AI cannot find
-                  </p>
-                  <ul className="list-disc space-y-1.5 pl-6 text-sm text-muted-foreground">
-                    {d.aiPerspective.missing.map((t, i) => (
-                      <li key={i}>{t}</li>
-                    ))}
-                  </ul>
-                </div>
+
+                {/* E-E-A-T Assessment */}
+                {d.llmCitability && (
+                  <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+                    <div className="mb-6 flex items-center justify-between">
+                      <h3 className="text-lg font-bold text-foreground">
+                        E-E-A-T Assessment
+                      </h3>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">
+                          Citability Score
+                        </p>
+                        <p
+                          className={cn(
+                            "text-2xl font-bold",
+                            scoreColor(d.llmCitability.citabilityScore)
+                          )}
+                        >
+                          {d.llmCitability.citabilityScore}/100
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-5">
+                      <EEATBar
+                        label="Experience"
+                        score={d.llmCitability.eeat.experience.score}
+                        maxScore={25}
+                        evidence={
+                          d.llmCitability.eeat.experience.evidence
+                        }
+                        gaps={d.llmCitability.eeat.experience.gaps}
+                      />
+                      <EEATBar
+                        label="Expertise"
+                        score={d.llmCitability.eeat.expertise.score}
+                        maxScore={25}
+                        evidence={
+                          d.llmCitability.eeat.expertise.evidence
+                        }
+                        gaps={d.llmCitability.eeat.expertise.gaps}
+                      />
+                      <EEATBar
+                        label="Authoritativeness"
+                        score={d.llmCitability.eeat.authority.score}
+                        maxScore={25}
+                        evidence={
+                          d.llmCitability.eeat.authority.evidence
+                        }
+                        gaps={d.llmCitability.eeat.authority.gaps}
+                      />
+                      <EEATBar
+                        label="Trustworthiness"
+                        score={d.llmCitability.eeat.trust.score}
+                        maxScore={25}
+                        evidence={d.llmCitability.eeat.trust.evidence}
+                        gaps={d.llmCitability.eeat.trust.gaps}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-2xl border border-border bg-card p-8 text-center">
+                <p className="text-muted-foreground">
+                  AI perspective analysis was not available for this scan.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This can happen when the LLM service is temporarily
+                  unavailable. Deterministic analysis results are still shown
+                  in the Issues and Passed tabs.
+                </p>
               </div>
-            </div>
+            )}
           </TabsContent>
         </Tabs>
 
