@@ -36,8 +36,9 @@ export function mergeDeterministicScores(
   const crawlBase = categoryPct(
     cats["contentExtractability"] ?? { score: 0, maxScore: 1 }
   );
-  const sitemapBonus = signals.sitemapXml ? 5 : 0;
-  const crawlability = clamp(crawlBase + sitemapBonus);
+  const robotsBonus = signals.robotsTxt ? 12 : 0;
+  const sitemapBonus = signals.sitemapXml ? 12 : 0;
+  const crawlability = clamp(crawlBase + robotsBonus + sitemapBonus);
 
   // --- AI Navigation ---
   const structureScore = categoryPct(
@@ -55,36 +56,38 @@ export function mergeDeterministicScores(
   const structuredFactors = pickFactors(cats["authorityContext"], [
     "Structured Data",
     "Schema Completeness",
-    "Publication Date",
-    "Entity Consistency",
   ]);
   const structuredAuthorityScore =
     structuredFactors.length > 0 ? factorsPct(structuredFactors) : 50;
   const entityClarityScore = categoryPct(
     cats["entityClarity"] ?? { score: 0, maxScore: 1 }
   );
+  const hasJsonLd = structuredFactors.some(
+    (f) => f.name.toLowerCase() === "structured data" && f.status === "good"
+  );
+  const jsonLdBonus = hasJsonLd ? 15 : 0;
   const structured = clamp(
-    structuredAuthorityScore * 0.8 + entityClarityScore * 0.2
+    structuredAuthorityScore * 0.7 + entityClarityScore * 0.3 + jsonLdBonus
   );
 
   // --- Citability ---
   const answerability = categoryPct(
     cats["answerability"] ?? { score: 0, maxScore: 1 }
   );
-  const entityClarity = categoryPct(
-    cats["entityClarity"] ?? { score: 0, maxScore: 1 }
-  );
   const grounding = categoryPct(
     cats["groundingSignals"] ?? { score: 0, maxScore: 1 }
+  );
+  const entityClarity = categoryPct(
+    cats["entityClarity"] ?? { score: 0, maxScore: 1 }
   );
   const readability = categoryPct(
     cats["readabilityForCompression"] ?? { score: 0, maxScore: 1 }
   );
   const citability = clamp(
-    answerability * 0.3 +
-      entityClarity * 0.2 +
-      grounding * 0.25 +
-      readability * 0.25
+    grounding * 0.35 +
+      entityClarity * 0.35 +
+      answerability * 0.15 +
+      readability * 0.15
   );
 
   return { crawlability, navigation, structured, citability };
@@ -100,6 +103,44 @@ export function computeOverallScore(scores: DimensionScores): number {
   );
 }
 
+const DIMENSION_MAP: Record<string, keyof DimensionScores> = {
+  "ai crawlability": "crawlability",
+  "ai navigation": "navigation",
+  "structured data": "structured",
+  "citability": "citability",
+};
+
+const MAX_PENALTY_PER_DIMENSION = 15;
+
+export function applyIssuePenalties(
+  scores: DimensionScores,
+  issues: { severity: string; dimension: string }[]
+): DimensionScores {
+  const penalties: Record<keyof DimensionScores, number> = {
+    crawlability: 0,
+    navigation: 0,
+    structured: 0,
+    citability: 0,
+  };
+
+  for (const issue of issues) {
+    const key = DIMENSION_MAP[issue.dimension.toLowerCase()];
+    if (!key) continue;
+    penalties[key] += issue.severity === "critical" ? 5 : 2;
+  }
+
+  for (const key of Object.keys(penalties) as (keyof DimensionScores)[]) {
+    penalties[key] = Math.min(penalties[key], MAX_PENALTY_PER_DIMENSION);
+  }
+
+  return {
+    crawlability: clamp(scores.crawlability - penalties.crawlability),
+    navigation: clamp(scores.navigation - penalties.navigation),
+    structured: clamp(scores.structured - penalties.structured),
+    citability: clamp(scores.citability - penalties.citability),
+  };
+}
+
 /**
  * Blend LLM citability score into the deterministic citability dimension.
  * Deterministic weight: 60%, LLM weight: 40%.
@@ -110,8 +151,9 @@ export function blendLLMScores(
   llmCitabilityScore: number,
   eeatTotal: number
 ): DimensionScores {
+  const llmNormalized = Math.min(llmCitabilityScore * 10, 80);
   const blendedCitability = clamp(
-    deterministicScores.citability * 0.6 + llmCitabilityScore * 0.4
+    deterministicScores.citability * 0.5 + llmNormalized * 0.5
   );
 
   const eeatBonus = clamp(eeatTotal) * 0.1;

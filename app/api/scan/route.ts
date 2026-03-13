@@ -5,8 +5,10 @@ import {
   mergeDeterministicScores,
   computeOverallScore,
   blendLLMScores,
+  applyIssuePenalties,
 } from "@/lib/scanner/score-merger";
 import { getFixTemplate } from "@/lib/scanner/fix-templates";
+import { filterAndDeduplicateIssues } from "@/lib/scanner/issue-filter";
 import { callLLMWithRetry } from "@/lib/scanner/llm";
 import {
   AI_PERSPECTIVE_SYSTEM_PROMPT,
@@ -302,16 +304,19 @@ export async function POST(request: Request) {
           );
         }
 
-        const overallScore = computeOverallScore(finalScores);
+        const filteredIssues = filterAndDeduplicateIssues(issues);
+
+        const penalizedScores = applyIssuePenalties(finalScores, filteredIssues);
+        const overallScore = computeOverallScore(penalizedScores);
 
         const scanResult: ScanResult = {
           url,
           domain: getDomain(url),
           scannedAt: new Date().toISOString(),
           overallScore,
-          scores: finalScores,
+          scores: penalizedScores,
           domainSignals: signals,
-          issues,
+          issues: filteredIssues,
           passed,
           llmPerspective,
           llmCitability,
