@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
+import { UserMenu } from "@/components/auth/user-menu";
 
 const navLinks = [
   { label: "Features", href: "#features" },
@@ -30,6 +31,7 @@ export function Header() {
               {link.label}
             </a>
           ))}
+          <UserMenu />
           <Button size="sm" className="rounded-full px-5" asChild>
             <a href="#hero">Get Started</a>
           </Button>
@@ -57,7 +59,10 @@ export function Header() {
                 {link.label}
               </a>
             ))}
-            <Button size="sm" className="mt-2 w-full rounded-full" asChild>
+            <div className="mt-2 flex items-center gap-3">
+              <UserMenu />
+            </div>
+            <Button size="sm" className="w-full rounded-full" asChild>
               <a href="#hero">Get Started</a>
             </Button>
           </div>

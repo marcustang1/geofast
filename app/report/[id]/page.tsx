@@ -39,6 +39,7 @@ import { CodeBlock } from "@/components/report/code-block";
 import { cn } from "@/lib/utils";
 import { getReport } from "@/lib/storage/local-store";
 import { downloadTxt } from "@/lib/storage/txt-export";
+import { UserMenu } from "@/components/auth/user-menu";
 import type { StoredReport, Issue, PageResult } from "@/lib/types";
 
 function IssueGroup({
@@ -380,6 +381,7 @@ export default function ReportPage() {
             <Button size="sm" asChild>
               <Link href="/">New Scan</Link>
             </Button>
+            <UserMenu />
           </div>
         </div>
       </header>
