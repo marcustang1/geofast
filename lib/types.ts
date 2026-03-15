@@ -16,6 +16,7 @@ export interface Issue {
   id: string;
   type: "error" | "warning" | "info";
   severity: "critical" | "warning" | "info";
+  source: "rule" | "ai";
   title: string;
   category: string;
   dimension: string;
@@ -23,7 +24,10 @@ export interface Issue {
   steps: string[];
   code: string | null;
   referenceUrl: string | null;
+  /** @deprecated Use affectedPages instead */
   affectedPage: string | null;
+  affectedPages: string[];
+  estimatedImpact: number;
 }
 
 export interface PassedCheck {
@@ -56,6 +60,14 @@ export interface EEAT {
   trust: EEATDimension;
 }
 
+export interface ExplorationStep {
+  url: string;
+  title: string;
+  reasoning: string;
+  findings: string;
+  pageScore: number;
+}
+
 export interface LLMPerspective {
   brandOverview: BrandOverview;
   citationScore: number;
@@ -64,12 +76,22 @@ export interface LLMPerspective {
   weaknesses: string[];
   aiUnderstanding: AIUnderstanding;
   recommendations: string[];
+  explorationSteps?: ExplorationStep[];
 }
 
 export interface LLMCitability {
   citabilityScore: number;
   eeat: EEAT;
-  issues: Omit<Issue, "code" | "referenceUrl" | "affectedPage">[];
+  issues: Omit<Issue, "code" | "referenceUrl" | "affectedPage" | "affectedPages" | "estimatedImpact" | "source">[];
+}
+
+export interface PageResult {
+  url: string;
+  title: string;
+  pageType: string;
+  overallScore: number;
+  scores: DimensionScores;
+  issueIds: string[];
 }
 
 export interface ScanResult {
@@ -83,6 +105,8 @@ export interface ScanResult {
   passed: PassedCheck[];
   llmPerspective: LLMPerspective | null;
   llmCitability: LLMCitability | null;
+  pages: PageResult[];
+  scannedPages: number;
 }
 
 export interface StoredReport {

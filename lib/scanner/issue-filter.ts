@@ -51,8 +51,13 @@ function themeKey(title: string): string | null {
   return null;
 }
 
+/**
+ * Filter, deduplicate, and merge issues — including cross-page merging.
+ * Issues with the same canonical title from different pages are merged into one
+ * with combined affectedPages.
+ */
 export function filterAndDeduplicateIssues(issues: Issue[]): Issue[] {
-  const seenByTitle = new Set<string>();
+  const seenByTitle = new Map<string, Issue>();
   const seenByTheme = new Set<string>();
   const result: Issue[] = [];
 
@@ -60,12 +65,27 @@ export function filterAndDeduplicateIssues(issues: Issue[]): Issue[] {
     if (shouldSuppress(issue.title)) continue;
 
     const canonical = canonicalTitle(issue.title);
-    if (seenByTitle.has(canonical)) continue;
+    const existing = seenByTitle.get(canonical);
+
+    if (existing) {
+      const pageUrl = issue.affectedPage ?? issue.affectedPages?.[0];
+      if (pageUrl && !existing.affectedPages.includes(pageUrl)) {
+        existing.affectedPages.push(pageUrl);
+        existing.estimatedImpact = existing.affectedPages.length;
+      }
+      continue;
+    }
 
     const theme = themeKey(issue.title);
     if (theme && seenByTheme.has(theme)) continue;
 
-    const adjusted = { ...issue };
+    const adjusted: Issue = {
+      ...issue,
+      affectedPages: issue.affectedPages?.length > 0
+        ? [...issue.affectedPages]
+        : issue.affectedPage ? [issue.affectedPage] : [],
+      estimatedImpact: issue.estimatedImpact || 1,
+    };
 
     if (adjusted.severity === "critical") {
       const isLLMIssue = adjusted.id.startsWith("llm-");
@@ -78,7 +98,7 @@ export function filterAndDeduplicateIssues(issues: Issue[]): Issue[] {
       }
     }
 
-    seenByTitle.add(canonical);
+    seenByTitle.set(canonical, adjusted);
     if (theme) seenByTheme.add(theme);
     result.push(adjusted);
   }

@@ -93,6 +93,31 @@ export function mergeDeterministicScores(
   return { crawlability, navigation, structured, citability };
 }
 
+/**
+ * Merge scores from multiple pages. Homepage (index 0) gets 2x weight.
+ */
+export function mergeMultiPageScores(
+  pageScores: DimensionScores[]
+): DimensionScores {
+  if (pageScores.length === 0) return { crawlability: 50, navigation: 50, structured: 50, citability: 50 };
+  if (pageScores.length === 1) return pageScores[0];
+
+  const keys: (keyof DimensionScores)[] = ["crawlability", "navigation", "structured", "citability"];
+  const result = { crawlability: 0, navigation: 0, structured: 0, citability: 0 };
+
+  for (const key of keys) {
+    let weightedSum = pageScores[0][key] * 2;
+    let totalWeight = 2;
+    for (let i = 1; i < pageScores.length; i++) {
+      weightedSum += pageScores[i][key];
+      totalWeight += 1;
+    }
+    result[key] = clamp(weightedSum / totalWeight);
+  }
+
+  return result;
+}
+
 export function computeOverallScore(scores: DimensionScores): number {
   const { crawlability, navigation, structured, citability } = scores;
   return clamp(
@@ -142,8 +167,8 @@ export function applyIssuePenalties(
 }
 
 /**
- * Blend LLM citability score into the deterministic citability dimension.
- * Deterministic weight: 60%, LLM weight: 40%.
+ * Blend LLM citability score (0-100) into the deterministic citability dimension.
+ * Deterministic weight: 50%, LLM weight: 50% (capped at 80).
  * Also boost structured dimension slightly with E-E-A-T total.
  */
 export function blendLLMScores(
@@ -151,7 +176,7 @@ export function blendLLMScores(
   llmCitabilityScore: number,
   eeatTotal: number
 ): DimensionScores {
-  const llmNormalized = Math.min(llmCitabilityScore * 10, 80);
+  const llmNormalized = Math.min(llmCitabilityScore, 80);
   const blendedCitability = clamp(
     deterministicScores.citability * 0.5 + llmNormalized * 0.5
   );

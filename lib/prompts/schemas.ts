@@ -6,6 +6,14 @@ function truncatedArray(maxItems: number) {
     .transform((arr) => arr.slice(0, maxItems));
 }
 
+const explorationStepSchema = z.object({
+  url: z.string(),
+  title: z.string(),
+  reasoning: z.string(),
+  findings: z.string(),
+  pageScore: z.number().min(1).max(10),
+});
+
 export const aiPerspectiveSchema = z.object({
   brandOverview: z.object({
     name: z.string(),
@@ -22,6 +30,7 @@ export const aiPerspectiveSchema = z.object({
     missing: truncatedArray(5),
   }),
   recommendations: truncatedArray(4),
+  explorationSteps: z.array(explorationStepSchema).optional().default([]),
 });
 
 export type AIPerspectiveOutput = z.infer<typeof aiPerspectiveSchema>;

@@ -12,6 +12,9 @@ import {
   ExternalLink,
   ArrowLeft,
   Star,
+  Globe,
+  ChevronDown,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +39,7 @@ import { CodeBlock } from "@/components/report/code-block";
 import { cn } from "@/lib/utils";
 import { getReport } from "@/lib/storage/local-store";
 import { downloadTxt } from "@/lib/storage/txt-export";
-import type { StoredReport, Issue } from "@/lib/types";
+import type { StoredReport, Issue, PageResult } from "@/lib/types";
 
 function IssueGroup({
   title,
@@ -46,6 +49,7 @@ function IssueGroup({
   badgeLabel,
   issues,
   defaultOpen,
+  totalPages,
 }: {
   title: string;
   icon: typeof AlertCircle;
@@ -54,6 +58,7 @@ function IssueGroup({
   badgeLabel: string;
   issues: Issue[];
   defaultOpen?: string;
+  totalPages?: number;
 }) {
   if (issues.length === 0) return null;
   return (
@@ -67,63 +72,89 @@ function IssueGroup({
         <Icon size={16} /> {title} ({issues.length})
       </h3>
       <Accordion type="single" collapsible defaultValue={defaultOpen}>
-        {issues.map((issue) => (
-          <AccordionItem
-            key={issue.id}
-            value={`issue-${issue.id}`}
-            className="mb-3 overflow-hidden rounded-xl border px-4"
-          >
-            <AccordionTrigger className="py-4 hover:no-underline">
-              <div className="flex flex-wrap items-center gap-2 text-left">
-                <Icon size={16} className={cn("shrink-0", iconClass)} />
-                <span className="font-medium text-foreground">
-                  {issue.title}
-                </span>
-                <Badge className={cn("border-0 text-[10px]", badgeClass)}>
-                  {badgeLabel}
-                </Badge>
-                <Badge variant="outline" className="text-[10px]">
-                  {issue.dimension}
-                </Badge>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="mb-4 rounded-lg bg-secondary/50 p-4 text-sm text-muted-foreground">
-                {issue.description}
-              </div>
-              {issue.steps.length > 0 && (
-                <div className="mb-4">
-                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
-                    How to fix
-                  </p>
-                  <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
-                    {issue.steps.map((s, i) => (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ol>
+        {issues.map((issue) => {
+          const affectedCount = issue.affectedPages?.length ?? 0;
+          const hasMultiplePages = totalPages && totalPages > 1;
+          return (
+            <AccordionItem
+              key={issue.id}
+              value={`issue-${issue.id}`}
+              className="mb-3 overflow-hidden rounded-xl border px-4"
+            >
+              <AccordionTrigger className="py-4 hover:no-underline">
+                <div className="flex flex-col gap-1.5 text-left">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Icon size={16} className={cn("shrink-0", iconClass)} />
+                    <span className="font-medium text-foreground">
+                      {issue.title}
+                    </span>
+                    <Badge className={cn("border-0 text-[10px]", badgeClass)}>
+                      {badgeLabel}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      {issue.dimension}
+                    </Badge>
+                    {issue.source && (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px]",
+                          issue.source === "ai"
+                            ? "border-primary/40 text-primary"
+                            : "border-muted-foreground/40 text-muted-foreground"
+                        )}
+                      >
+                        {issue.source === "ai" ? "AI" : "Rule"}
+                      </Badge>
+                    )}
+                  </div>
+                  {hasMultiplePages && affectedCount > 0 && (
+                    <span className="ml-6 text-xs text-muted-foreground">
+                      {affectedCount}/{totalPages} pages
+                      {issue.estimatedImpact > 1 &&
+                        ` · estimated impact ~${issue.estimatedImpact} pages`}
+                    </span>
+                  )}
                 </div>
-              )}
-              {issue.code && (
-                <div className="mb-4">
-                  <p className="mb-1 text-xs text-muted-foreground">
-                    Code example
-                  </p>
-                  <CodeBlock code={issue.code} />
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="mb-4 rounded-lg bg-secondary/50 p-4 text-sm text-muted-foreground">
+                  {issue.description}
                 </div>
-              )}
-              {issue.referenceUrl && (
-                <a
-                  href={issue.referenceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                >
-                  <ExternalLink size={12} /> Reference
-                </a>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-        ))}
+                {issue.steps.length > 0 && (
+                  <div className="mb-4">
+                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+                      How to fix
+                    </p>
+                    <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
+                      {issue.steps.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {issue.code && (
+                  <div className="mb-4">
+                    <p className="mb-1 text-xs text-muted-foreground">
+                      Code example
+                    </p>
+                    <CodeBlock code={issue.code} />
+                  </div>
+                )}
+                {issue.referenceUrl && (
+                  <a
+                    href={issue.referenceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <ExternalLink size={12} /> Reference
+                  </a>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
       </Accordion>
     </div>
   );
@@ -175,6 +206,84 @@ function EEATBar({
           <span className="font-medium text-destructive">Gaps:</span> {gaps}
         </p>
       </div>
+    </div>
+  );
+}
+
+function PageRow({
+  page,
+  issues,
+}: {
+  page: PageResult;
+  issues: Issue[];
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const pageIssues = issues.filter((iss) => page.issueIds.includes(iss.id));
+  const issueCount = pageIssues.length;
+  const pathname = new URL(page.url).pathname;
+  const displayPath = pathname === "/" ? page.url : pathname;
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-border">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary/30"
+      >
+        <Globe size={16} className="shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium text-foreground">
+              {page.title || displayPath}
+            </span>
+            <Badge variant="outline" className="shrink-0 text-[10px]">
+              {page.pageType}
+            </Badge>
+          </div>
+          <p className="truncate text-xs text-muted-foreground">{displayPath}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="text-xs text-muted-foreground">
+            {issueCount} {issueCount === 1 ? "issue" : "issues"}
+          </span>
+          <span
+            className={cn(
+              "text-lg font-bold tabular-nums",
+              scoreColor(page.overallScore)
+            )}
+          >
+            {page.overallScore}
+          </span>
+          <ChevronDown
+            size={16}
+            className={cn(
+              "text-muted-foreground transition-transform",
+              isOpen && "rotate-180"
+            )}
+          />
+        </div>
+      </button>
+      {isOpen && pageIssues.length > 0 && (
+        <div className="border-t border-border bg-secondary/20 px-4 py-3 space-y-2">
+          {pageIssues.map((iss) => (
+            <div key={iss.id} className="flex items-start gap-2 text-sm">
+              {iss.severity === "critical" ? (
+                <AlertCircle size={14} className="mt-0.5 shrink-0 text-destructive" />
+              ) : (
+                <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning" />
+              )}
+              <span className="text-muted-foreground">{iss.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {isOpen && pageIssues.length === 0 && (
+        <div className="border-t border-border bg-secondary/20 px-4 py-3">
+          <p className="text-sm text-muted-foreground flex items-center gap-2">
+            <CheckCircle size={14} className="text-success" />
+            No issues found on this page
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -243,6 +352,11 @@ export default function ReportPage() {
     },
   ];
 
+  const hasPages = d.pages && d.pages.length > 0;
+  const scannedPages = d.scannedPages ?? 1;
+  const explorationSteps = d.llmPerspective?.explorationSteps;
+  const hasExploration = explorationSteps && explorationSteps.length > 0;
+
   return (
     <div className="min-h-screen gradient-bg">
       {/* Top Bar */}
@@ -277,6 +391,14 @@ export default function ReportPage() {
             {d.domain}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
+            {scannedPages > 1 && (
+              <>
+                <span className="font-semibold text-foreground">
+                  {scannedPages} pages scanned
+                </span>
+                {" · "}
+              </>
+            )}
             Found{" "}
             <span className="font-semibold text-destructive">
               {criticalIssues.length} critical{" "}
@@ -352,6 +474,17 @@ export default function ReportPage() {
                 {d.issues.length}
               </Badge>
             </TabsTrigger>
+            {hasPages && d.pages.length > 1 && (
+              <TabsTrigger value="pages" className="gap-1.5">
+                By Page
+                <Badge
+                  variant="secondary"
+                  className="ml-1 h-5 px-1.5 text-[10px]"
+                >
+                  {d.pages.length}
+                </Badge>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="passed" className="gap-1.5">
               Passed
               <Badge
@@ -369,7 +502,7 @@ export default function ReportPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Issues */}
+          {/* Tab: Issues */}
           <TabsContent value="issues" className="mt-6 space-y-8">
             <IssueGroup
               title="Needs Fix"
@@ -381,6 +514,7 @@ export default function ReportPage() {
               defaultOpen={
                 criticalIssues[0] ? `issue-${criticalIssues[0].id}` : undefined
               }
+              totalPages={scannedPages}
             />
             <IssueGroup
               title="Suggested Improvements"
@@ -389,10 +523,24 @@ export default function ReportPage() {
               badgeClass="bg-warning/10 text-warning"
               badgeLabel="Warning"
               issues={warningIssues}
+              totalPages={scannedPages}
             />
           </TabsContent>
 
-          {/* Tab 2: Passed */}
+          {/* Tab: By Page */}
+          {hasPages && d.pages.length > 1 && (
+            <TabsContent value="pages" className="mt-6 space-y-3">
+              {d.pages.map((page) => (
+                <PageRow
+                  key={page.url}
+                  page={page}
+                  issues={d.issues}
+                />
+              ))}
+            </TabsContent>
+          )}
+
+          {/* Tab: Passed */}
           <TabsContent value="passed" className="mt-6">
             <div className="space-y-2">
               {d.passed.map((item, i) => (
@@ -415,10 +563,56 @@ export default function ReportPage() {
             </div>
           </TabsContent>
 
-          {/* Tab 3: AI Perspective */}
+          {/* Tab: AI Perspective */}
           <TabsContent value="ai" className="mt-6 space-y-6">
             {d.llmPerspective ? (
               <>
+                {/* Exploration Narrative */}
+                {hasExploration && (
+                  <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+                    <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-foreground">
+                      <Search size={18} className="text-primary" />
+                      Exploration Process
+                    </h3>
+                    <div className="relative space-y-0">
+                      {explorationSteps.map((step, idx) => (
+                        <div key={idx} className="relative flex gap-4 pb-6 last:pb-0">
+                          {/* Timeline line */}
+                          {idx < explorationSteps.length - 1 && (
+                            <div className="absolute left-[15px] top-8 h-[calc(100%-16px)] w-px bg-border" />
+                          )}
+                          {/* Step number */}
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                            {idx + 1}
+                          </div>
+                          {/* Step content */}
+                          <div className="min-w-0 flex-1 pt-0.5">
+                            <div className="flex flex-wrap items-baseline gap-2">
+                              <span className="text-sm font-semibold text-foreground">
+                                {step.title}
+                              </span>
+                              <span
+                                className={cn(
+                                  "text-xs font-bold tabular-nums",
+                                  scoreColor(step.pageScore * 10)
+                                )}
+                              >
+                                {step.pageScore}/10
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {step.reasoning}
+                            </p>
+                            <p className="mt-1 text-sm text-foreground/80">
+                              {step.findings}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Brand Overview */}
                 <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
                   <div className="mb-2 flex flex-wrap items-center gap-3">
@@ -581,6 +775,41 @@ export default function ReportPage() {
                         evidence={d.llmCitability.eeat.trust.evidence}
                         gaps={d.llmCitability.eeat.trust.gaps}
                       />
+                    </div>
+                  </div>
+                )}
+
+                {/* Scanned Pages Summary (multi-page) */}
+                {hasPages && d.pages.length > 1 && (
+                  <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+                    <h3 className="mb-4 text-sm font-semibold text-foreground">
+                      Analyzed {d.pages.length} pages
+                    </h3>
+                    <div className="space-y-2">
+                      {d.pages.map((page) => {
+                        const pathname = new URL(page.url).pathname;
+                        return (
+                          <div
+                            key={page.url}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <Globe size={14} className="shrink-0 text-muted-foreground" />
+                              <span className="truncate text-muted-foreground">
+                                {page.title || pathname}
+                              </span>
+                            </div>
+                            <span
+                              className={cn(
+                                "ml-2 shrink-0 font-bold tabular-nums",
+                                scoreColor(page.overallScore)
+                              )}
+                            >
+                              {page.overallScore}/100
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -51,6 +52,11 @@ export default function RootLayout({
           {children}
           <Toaster />
         </TooltipProvider>
+        <Script
+          src="https://va.vercel-scripts.com/v1/script.js"
+          defer
+          data-endpoint="/_vercel/insights"
+        />
       </body>
     </html>
   );

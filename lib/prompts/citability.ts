@@ -58,19 +58,30 @@ export function buildCitabilityUserContent(
   textContent: string,
   title: string,
   url: string,
-  existingIssues: string[]
+  existingIssues: string[],
+  additionalPages?: { url: string; title: string; textContent: string }[]
 ): string {
   const issuesList =
     existingIssues.length > 0
       ? existingIssues.map((t) => `- ${t}`).join("\n")
       : "None";
 
-  return `URL: ${url}
+  let content = `URL: ${url}
 Title: ${title}
 
 Already detected issues (DO NOT duplicate these):
 ${issuesList}
 
-Page Content:
+Page Content (Homepage):
 ${textContent}`;
+
+  if (additionalPages && additionalPages.length > 0) {
+    content += `\n\n--- Additional Pages (${additionalPages.length}) ---\n`;
+    for (const page of additionalPages) {
+      const summary = page.textContent.slice(0, 200);
+      content += `\n[Page: ${page.title}]\nURL: ${page.url}\nSummary: ${summary}\n`;
+    }
+  }
+
+  return content;
 }
