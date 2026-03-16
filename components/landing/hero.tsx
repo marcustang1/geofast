@@ -3,22 +3,25 @@
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { ArrowRight, Loader2, AlertCircle } from "lucide-react";
-import { canScan, incrementScanCount, getRemainingScans } from "@/lib/rate-limit/cookie";
+import { canScanTrial, incrementTrialCount, getRemainingTrials } from "@/lib/rate-limit/cookie";
 import { saveReport } from "@/lib/storage/local-store";
+import { UpgradeModal } from "@/components/upgrade-modal";
+import { createClient } from "@/lib/supabase/client";
 import type { ScanResult } from "@/lib/types";
+import type { User } from "@supabase/supabase-js";
 
 interface ProgressState {
   step: string;
   message: string;
   progress: number;
+}
+
+interface ProfileData {
+  plan: string;
+  creditsRemaining: number;
+  creditsTotal: number;
+  canScan: boolean;
 }
 
 function validateUrl(input: string): string | null {
@@ -46,16 +49,69 @@ function validateUrl(input: string): string | null {
 
 export function Hero() {
   const router = useRouter();
+  const supabase = createClient();
   const [url, setUrl] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showLimitDialog, setShowLimitDialog] = useState(false);
-  const [remaining, setRemaining] = useState<number | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [trialRemaining, setTrialRemaining] = useState<number>(3);
 
   useEffect(() => {
-    setRemaining(getRemainingScans());
+    setTrialRemaining(getRemainingTrials());
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      if (user) fetchProfile();
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchProfile();
+    });
+
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function fetchProfile() {
+    try {
+      const res = await fetch("/api/user/profile");
+      if (res.ok) {
+        setProfile(await res.json());
+      }
+    } catch {
+      // silent
+    }
+  }
+
+  function canUserScan(): boolean {
+    if (user && profile) return profile.canScan;
+    return canScanTrial();
+  }
+
+  async function handleSignIn() {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+  }
+
+  function handleUpgrade() {
+    const productId = (document.querySelector("[data-product-id]") as HTMLElement)?.dataset.productId;
+    if (!user || !productId) return;
+    const params = new URLSearchParams({
+      productId,
+      referenceId: user.id,
+      successUrl: "/success",
+    });
+    window.location.href = `/checkout?${params.toString()}`;
+  }
 
   const handleScan = useCallback(
     async (e: React.FormEvent) => {
@@ -68,8 +124,8 @@ export function Hero() {
         return;
       }
 
-      if (!canScan()) {
-        setShowLimitDialog(true);
+      if (!canUserScan()) {
+        setShowUpgradeModal(true);
         return;
       }
 
@@ -112,9 +168,14 @@ export function Hero() {
                 setProgress(data as ProgressState);
               } else if (currentEvent === "complete") {
                 const scanResult = data.scanResult as ScanResult;
-                incrementScanCount();
-                setRemaining(getRemainingScans());
-                const report = saveReport(scanResult);
+
+                if (!user) {
+                  incrementTrialCount();
+                  setTrialRemaining(getRemainingTrials());
+                }
+
+                const report = saveReport(scanResult, profile?.plan);
+                if (user) await fetchProfile();
                 router.push(`/report/${report.id}`);
                 return;
               } else if (currentEvent === "error") {
@@ -132,8 +193,24 @@ export function Hero() {
         setProgress(null);
       }
     },
-    [url, router]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [url, router, user, profile]
   );
+
+  function getCreditText(): string {
+    if (user && profile) {
+      return `${profile.creditsRemaining}/${profile.creditsTotal} scans remaining this month`;
+    }
+    return `${trialRemaining} free trial${trialRemaining !== 1 ? "s" : ""} remaining`;
+  }
+
+  function getSubtext(): string {
+    if (user && profile) {
+      if (profile.plan === "pro") return "Pro Plan";
+      return "Free Plan · Upgrade for 300 scans/month";
+    }
+    return "No login required · Sign in for more scans";
+  }
 
   return (
     <section
@@ -193,7 +270,6 @@ export function Hero() {
           </Button>
         </form>
 
-        {/* Progress indicator */}
         {isScanning && progress && (
           <div className="mx-auto mt-4 max-w-xl sm:mt-6">
             <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-secondary">
@@ -208,7 +284,6 @@ export function Hero() {
           </div>
         )}
 
-        {/* Error message */}
         {error && (
           <div className="mx-auto mt-3 flex max-w-xl items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm text-destructive sm:mt-4">
             <AlertCircle size={16} className="shrink-0" />
@@ -217,9 +292,14 @@ export function Hero() {
         )}
 
         {!isScanning && !error && (
-          <p className="mt-3 text-xs text-muted-foreground sm:mt-4">
-            Free · No login required · {remaining ?? 3} scans remaining today
-          </p>
+          <div className="mt-3 sm:mt-4">
+            <p className="text-xs text-muted-foreground">
+              {getCreditText()}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground/70">
+              {getSubtext()}
+            </p>
+          </div>
         )}
 
         <div className="mt-10 flex items-center justify-center gap-10 sm:mt-16 sm:gap-16">
@@ -240,26 +320,14 @@ export function Hero() {
         </div>
       </div>
 
-      {/* Rate limit dialog */}
-      <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Daily Limit Reached</DialogTitle>
-            <DialogDescription>
-              You&apos;ve used all 3 free scans for today. Come back tomorrow
-              for more scans, or upgrade to Pro for unlimited access.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowLimitDialog(false)}
-            >
-              Got it
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <UpgradeModal
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
+        plan={profile?.plan ?? "trial"}
+        isLoggedIn={!!user}
+        onUpgrade={handleUpgrade}
+        onSignIn={handleSignIn}
+      />
     </section>
   );
 }

@@ -2,7 +2,7 @@ import { Header } from "@/components/landing/header";
 import { Hero } from "@/components/landing/hero";
 import { Features } from "@/components/landing/features";
 import { ResultsPreview } from "@/components/landing/results-preview";
-import { Testimonials } from "@/components/landing/testimonials";
+import { PricingSection } from "@/components/landing/pricing-section";
 import { ScanHistory } from "@/components/landing/scan-history";
 import { Footer } from "@/components/landing/footer";
 
@@ -15,7 +15,7 @@ export default function HomePage() {
         <ScanHistory />
         <Features />
         <ResultsPreview />
-        <Testimonials />
+        <PricingSection productId={process.env.CREEM_PRODUCT_ID!} />
       </main>
       <Footer />
     </div>

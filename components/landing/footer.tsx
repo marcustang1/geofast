@@ -1,15 +1,19 @@
-import { Rocket } from "lucide-react";
+import Link from "next/link";
+import { Sparkles } from "lucide-react";
 
 export function Footer() {
   return (
     <footer className="border-t border-border">
       <div className="bg-primary/5 py-4">
         <p className="text-center text-sm font-medium text-foreground">
-          <Rocket size={14} className="mr-1.5 inline text-primary" />
-          Unlimited scans, competitor analysis, and more.{" "}
-          <span className="font-semibold text-primary">
-            Pro plan coming soon.
-          </span>
+          <Sparkles size={14} className="mr-1.5 inline text-primary" />
+          300 scans/month, unlimited history, and more.{" "}
+          <a
+            href="#pricing"
+            className="font-semibold text-primary hover:underline"
+          >
+            Upgrade to Pro →
+          </a>
         </p>
       </div>
 
@@ -26,33 +30,61 @@ export function Footer() {
               Product
             </p>
             <ul className="space-y-2 text-sm">
-              {["Features", "Pricing", "Blog", "Docs"].map((l) => (
-                <li key={l}>
-                  <a
-                    href={`#${l.toLowerCase()}`}
-                    className="text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {l}
-                  </a>
-                </li>
-              ))}
+              <li>
+                <a
+                  href="#features"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Features
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#pricing"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Pricing
+                </a>
+              </li>
             </ul>
           </div>
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Company
+              Legal
             </p>
             <ul className="space-y-2 text-sm">
-              {["GitHub", "Twitter", "Privacy Policy", "Terms"].map((l) => (
-                <li key={l}>
-                  <a
-                    href="#"
-                    className="text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {l}
-                  </a>
-                </li>
-              ))}
+              <li>
+                <Link
+                  href="/privacy"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/terms"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/refund"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Refund Policy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/contact"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Contact Us
+                </Link>
+              </li>
             </ul>
           </div>
         </div>

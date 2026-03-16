@@ -8,16 +8,33 @@ import { Button } from "@/components/ui/button";
 import { getAllReports, deleteReport } from "@/lib/storage/local-store";
 import { scoreColor } from "@/components/report/score-ring";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import type { StoredReport } from "@/lib/types";
 
 export function ScanHistory() {
   const [reports, setReports] = useState<StoredReport[]>([]);
+  const [plan, setPlan] = useState<string>("trial");
+  const supabase = createClient();
 
   useEffect(() => {
     setReports(getAllReports());
-  }, []);
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        fetch("/api/user/profile")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((p) => {
+            if (p?.plan) setPlan(p.plan);
+          })
+          .catch(() => {});
+      }
+    });
+  }, [supabase.auth]);
 
   if (reports.length === 0) return null;
+
+  const maxDisplay = plan === "pro" ? reports.length : 5;
+  const visible = reports.slice(0, maxDisplay);
 
   function handleDelete(id: string) {
     deleteReport(id);
@@ -31,9 +48,14 @@ export function ScanHistory() {
         <h2 className="text-lg font-semibold text-foreground">
           Recent Scans
         </h2>
+        {plan !== "pro" && reports.length > maxDisplay && (
+          <span className="ml-auto text-xs text-muted-foreground">
+            Showing {maxDisplay} of {reports.length} · Upgrade for full history
+          </span>
+        )}
       </div>
       <div className="space-y-3">
-        {reports.map((r) => (
+        {visible.map((r) => (
           <div
             key={r.id}
             className="flex items-center gap-4 rounded-xl border border-border bg-card px-5 py-4 transition-shadow hover:shadow-md"

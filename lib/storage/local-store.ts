@@ -1,9 +1,13 @@
 import type { ScanResult, StoredReport } from "@/lib/types";
 
 const STORAGE_KEY = "geofast_reports";
-const MAX_REPORTS = 20;
 
-export function saveReport(scanResult: ScanResult): StoredReport {
+function getMaxReports(plan?: string): number {
+  if (plan === "pro") return 999;
+  return 5;
+}
+
+export function saveReport(scanResult: ScanResult, plan?: string): StoredReport {
   const report: StoredReport = {
     id: crypto.randomUUID(),
     url: scanResult.url,
@@ -16,8 +20,9 @@ export function saveReport(scanResult: ScanResult): StoredReport {
   const existing = getAllReports();
   existing.unshift(report);
 
-  if (existing.length > MAX_REPORTS) {
-    existing.splice(MAX_REPORTS);
+  const max = getMaxReports(plan);
+  if (existing.length > max) {
+    existing.splice(max);
   }
 
   if (typeof window !== "undefined") {
@@ -34,7 +39,6 @@ export function getReport(id: string): StoredReport | null {
 
 export function getAllReports(): StoredReport[] {
   if (typeof window === "undefined") return [];
-
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];

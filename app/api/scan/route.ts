@@ -1,3 +1,5 @@
+import { createClient } from "@/lib/supabase/server";
+import { checkCredits, deductCredit } from "@/lib/credits";
 import { runDeterministicAudit } from "@/lib/scanner/deterministic";
 import { detectDomainSignals } from "@/lib/scanner/domain-signals";
 import { extractContent } from "@/lib/scanner/content-extractor";
@@ -156,6 +158,27 @@ export async function POST(request: Request) {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (user) {
+    const credits = await checkCredits(user.id);
+    if (!credits.canScan) {
+      return new Response(
+        JSON.stringify({ error: "No scan credits remaining. Please upgrade your plan." }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const deducted = await deductCredit(user.id);
+    if (!deducted) {
+      return new Response(
+        JSON.stringify({ error: "Failed to deduct credit. Please try again." }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    }
   }
 
   const encoder = new TextEncoder();

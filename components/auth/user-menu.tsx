@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings, Sparkles, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
+
+interface ProfileData {
+  plan: string;
+  creditsRemaining: number;
+  creditsTotal: number;
+  canScan: boolean;
+  subscriptionStatus: string;
+  customerId: string | null;
+}
 
 function GoogleIcon() {
   return (
@@ -31,12 +41,14 @@ function GoogleIcon() {
 
 export function UserMenu() {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
+      if (user) fetchProfile();
       setIsLoading(false);
     });
 
@@ -44,10 +56,21 @@ export function UserMenu() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      if (session?.user) fetchProfile();
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchProfile() {
+    try {
+      const res = await fetch("/api/user/profile");
+      if (res.ok) setProfile(await res.json());
+    } catch {
+      // silent
+    }
+  }
 
   async function handleSignIn() {
     await supabase.auth.signInWithOAuth({
@@ -61,7 +84,18 @@ export function UserMenu() {
   async function handleSignOut() {
     await supabase.auth.signOut();
     setUser(null);
+    setProfile(null);
     window.location.reload();
+  }
+
+  function handleManage() {
+    if (!profile?.customerId) return;
+    window.location.href = `/portal?customerId=${profile.customerId}`;
+  }
+
+  function handleUpgrade() {
+    const el = document.getElementById("pricing");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
   }
 
   if (isLoading) return null;
@@ -80,6 +114,7 @@ export function UserMenu() {
     user.email?.split("@")[0] ??
     "User";
   const avatar = user.user_metadata?.avatar_url;
+  const isPro = profile?.plan === "pro";
 
   return (
     <div className="flex items-center gap-2">
@@ -95,9 +130,55 @@ export function UserMenu() {
           {name[0]?.toUpperCase()}
         </div>
       )}
-      <span className="hidden text-sm font-medium text-foreground sm:inline">
-        {name}
-      </span>
+
+      <div className="hidden items-center gap-1.5 sm:flex">
+        <span className="text-sm font-medium text-foreground">{name}</span>
+        {isPro ? (
+          <Badge
+            variant="default"
+            className="h-5 px-1.5 text-[10px] font-semibold"
+          >
+            <Sparkles size={10} className="mr-0.5" />
+            PRO
+          </Badge>
+        ) : (
+          <Badge
+            variant="secondary"
+            className="h-5 px-1.5 text-[10px] font-semibold"
+          >
+            FREE
+          </Badge>
+        )}
+      </div>
+
+      {profile && (
+        <span className="hidden text-xs tabular-nums text-muted-foreground lg:inline">
+          {profile.creditsRemaining}/{profile.creditsTotal}
+        </span>
+      )}
+
+      {isPro ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleManage}
+          className="h-7 w-7 p-0"
+          title="Manage subscription"
+        >
+          <Settings size={14} />
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleUpgrade}
+          className="hidden h-7 gap-0.5 px-2 text-xs text-primary sm:flex"
+        >
+          Upgrade
+          <ArrowUpRight size={12} />
+        </Button>
+      )}
+
       <Button
         variant="ghost"
         size="sm"
